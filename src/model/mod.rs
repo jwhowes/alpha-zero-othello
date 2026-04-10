@@ -1,3 +1,5 @@
+mod vit;
+
 use crate::board::Board;
 
 /*

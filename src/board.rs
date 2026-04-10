@@ -1,7 +1,7 @@
 #[derive(Clone, Copy)]
 pub enum Player {
-    PlayerOne,
-    PlayerTwo,
+    Black,
+    White,
 }
 
 #[derive(Clone, Copy)]
@@ -10,9 +10,12 @@ pub enum Winner {
     Player(Player),
 }
 
+const GRID_SIZE: usize = 8;
+
 #[derive(Clone)]
 pub struct Board {
-    // TODO
+    grid: [[Option<Player>; GRID_SIZE]; GRID_SIZE],
+    player: Player,
 }
 
 #[derive(Clone, Copy)]
@@ -20,7 +23,37 @@ pub struct Action(usize, usize);
 
 impl Board {
     pub fn new() -> Self {
-        todo!()
+        Self {
+            grid: [
+                [None; 8],
+                [None; 8],
+                [None; 8],
+                [
+                    None,
+                    None,
+                    None,
+                    Some(Player::White),
+                    Some(Player::Black),
+                    None,
+                    None,
+                    None,
+                ],
+                [
+                    None,
+                    None,
+                    None,
+                    Some(Player::Black),
+                    Some(Player::White),
+                    None,
+                    None,
+                    None,
+                ],
+                [None; 8],
+                [None; 8],
+                [None; 8],
+            ],
+            player: Player::Black,
+        }
     }
 
     pub fn legal_actions(&self) -> Vec<Action> {

@@ -1,7 +1,10 @@
 use std::iter;
 
 use candle_core::{CudaDevice, Device, IndexOp, Result, Tensor, Var};
-use candle_nn::{LayerNorm, Linear, Module, ops::{silu, softmax}};
+use candle_nn::{
+    LayerNorm, Linear, Module,
+    ops::{silu, softmax},
+};
 
 struct Attention {
     w_q: Linear,
@@ -12,7 +15,7 @@ struct Attention {
 
     n_heads: usize,
     d_attn: usize,
-    scale: Tensor
+    scale: Tensor,
 }
 
 impl Attention {
@@ -22,37 +25,43 @@ impl Attention {
         Ok(Self {
             w_q: Linear::new(
                 Tensor::randn(0f32, 0.1_f32, (d_model, d_model), device)?,
-                None
+                None,
             ),
             w_k: Linear::new(
                 Tensor::randn(0f32, 0.1_f32, (d_model, d_model), device)?,
-                None
+                None,
             ),
             w_v: Linear::new(
                 Tensor::randn(0f32, 0.1_f32, (d_model, d_model), device)?,
-                None
+                None,
             ),
 
             w_o: Linear::new(
                 Tensor::randn(0f32, 0.1_f32, (d_model, d_model), device)?,
-                None
+                None,
             ),
 
             scale: Tensor::full((1. / d_attn as f32).sqrt(), (1, 1, 1, 1), device)?,
             d_attn,
-            n_heads
+            n_heads,
         })
     }
 
     fn forward(&self, x: &Tensor) -> Result<Tensor> {
         let (b, l, d_model) = x.dims3()?;
 
-        let q = self.w_q.forward(x)?
+        let q = self
+            .w_q
+            .forward(x)?
             .reshape((b, l, self.n_heads, self.d_attn))?
             .transpose(1, 2)?;
-        let k = self.w_k.forward(x)?
+        let k = self
+            .w_k
+            .forward(x)?
             .reshape((b, l, self.n_heads, self.d_attn))?;
-        let v = self.w_v.forward(x)?
+        let v = self
+            .w_v
+            .forward(x)?
             .reshape((b, l, self.n_heads, self.d_attn))?
             .transpose(1, 2)?;
 
@@ -62,7 +71,7 @@ impl Attention {
             &softmax(&attn, 3)?
                 .matmul(&v)?
                 .transpose(1, 2)?
-                .reshape(&[b, l, d_model])?
+                .reshape(&[b, l, d_model])?,
         )
     }
 }
@@ -70,7 +79,7 @@ impl Attention {
 struct SwiGLU {
     hidden: Linear,
     gate: Linear,
-    out: Linear
+    out: Linear,
 }
 
 impl SwiGLU {
@@ -80,24 +89,22 @@ impl SwiGLU {
         Ok(Self {
             hidden: Linear::new(
                 Tensor::randn(0f32, 0.1_f32, (d_hidden, d_model), device)?,
-                None
+                None,
             ),
             gate: Linear::new(
                 Tensor::randn(0f32, 0.1_f32, (d_hidden, d_model), device)?,
-                None
+                None,
             ),
             out: Linear::new(
                 Tensor::randn(0f32, 0.1_f32, (d_model, d_hidden), device)?,
-                None
-            )
+                None,
+            ),
         })
     }
 
     fn forward(&self, x: &Tensor) -> Result<Tensor> {
-        self.out.forward(&(
-            silu(&self.gate.forward(x)?)? *
-            &self.hidden.forward(x)?
-        )?)
+        self.out
+            .forward(&(silu(&self.gate.forward(x)?)? * &self.hidden.forward(x)?)?)
     }
 }
 
@@ -106,34 +113,24 @@ struct ViTBlock {
     attn_norm: LayerNorm,
 
     ffn: SwiGLU,
-    ffn_norm: LayerNorm
+    ffn_norm: LayerNorm,
 }
 
 impl ViTBlock {
     fn new(d_model: usize, n_heads: usize, device: &Device) -> Result<Self> {
         Ok(Self {
             attn: Attention::new(d_model, n_heads, device)?,
-            attn_norm: LayerNorm::rms_norm(
-                Tensor::randn(0f32, 0.1_f32, (d_model,), device)?,
-                1e-6
-            ),
+            attn_norm: LayerNorm::rms_norm(Tensor::randn(0f32, 0.1_f32, (d_model,), device)?, 1e-6),
 
             ffn: SwiGLU::new(d_model, None, device)?,
-            ffn_norm: LayerNorm::rms_norm(
-                Tensor::randn(0f32, 0.1_f32, (d_model,), device)?,
-                1e-6
-            )
+            ffn_norm: LayerNorm::rms_norm(Tensor::randn(0f32, 0.1_f32, (d_model,), device)?, 1e-6),
         })
     }
 
     fn forward(&self, x: &Tensor) -> Result<Tensor> {
-        let x = (
-            x +
-            self.attn.forward(&self.attn_norm.forward(x)?)?
-        )?;
+        let x = (x + self.attn.forward(&self.attn_norm.forward(x)?)?)?;
 
-        &x +
-        self.ffn.forward(&self.ffn_norm.forward(&x)?)?
+        &x + self.ffn.forward(&self.ffn_norm.forward(&x)?)?
     }
 }
 
@@ -149,46 +146,62 @@ pub struct ViT {
 
     patch_size: usize,
     num_patches: usize,
-    d_model: usize
+    d_model: usize,
 }
 
 impl ViT {
     pub fn new(
-        image_size: usize, in_channels: usize,
-        d_model: usize, n_heads: usize, n_layers: usize, patch_size: usize,
-        out_cls: usize, out_channels: usize,
-        device: &Device
+        image_size: usize,
+        in_channels: usize,
+        d_model: usize,
+        n_heads: usize,
+        n_layers: usize,
+        patch_size: usize,
+        out_cls: usize,
+        out_channels: usize,
+        device: &Device,
     ) -> Result<Self> {
         let num_patches = image_size / patch_size;
 
         Ok(Self {
             patch_stem: Linear::new(
-                Tensor::randn(0f32, 0.1_f32, (d_model, in_channels * patch_size * patch_size), device)?,
-                None
+                Tensor::randn(
+                    0f32,
+                    0.1_f32,
+                    (d_model, in_channels * patch_size * patch_size),
+                    device,
+                )?,
+                None,
             ),
-            pos_emb: Var::from_tensor(
-                &Tensor::randn(0f32, 0.1_f32, (1, num_patches * num_patches, d_model), device)?
-            )?,
-            cls_emb: Var::from_tensor(
-                &Tensor::randn(0f32, 0.1_f32, (1, 1, d_model), device)?
-            )?,
+            pos_emb: Var::from_tensor(&Tensor::randn(
+                0f32,
+                0.1_f32,
+                (1, num_patches * num_patches, d_model),
+                device,
+            )?)?,
+            cls_emb: Var::from_tensor(&Tensor::randn(0f32, 0.1_f32, (1, 1, d_model), device)?)?,
 
             blocks: (0..n_layers)
                 .map(|_| ViTBlock::new(d_model, n_heads, device))
                 .collect::<Result<Vec<ViTBlock>>>()?,
 
             patch_head: Linear::new(
-                Tensor::randn(0f32, 0.1_f32, (out_channels * patch_size * patch_size, d_model), device)?,
-                None
+                Tensor::randn(
+                    0f32,
+                    0.1_f32,
+                    (out_channels * patch_size * patch_size, d_model),
+                    device,
+                )?,
+                None,
             ),
             cls_head: Linear::new(
                 Tensor::randn(0f32, 0.1_f32, (out_cls, d_model), device)?,
-                None
+                None,
             ),
 
             patch_size,
             num_patches,
-            d_model
+            d_model,
         })
     }
 
@@ -198,12 +211,21 @@ impl ViT {
     fn forward(&self, image: &Tensor) -> Result<(Tensor, Tensor)> {
         let (b, c, h, w) = image.dims4()?;
 
-        let x = self.patch_stem.forward(
-            &image
-                .reshape((b, c, self.num_patches, self.patch_size, self.num_patches, self.patch_size))?
-                .permute((0, 1, 2, 4, 3, 5))?
-                .flatten(1, 3)?
-        )?
+        let x = self
+            .patch_stem
+            .forward(
+                &image
+                    .reshape((
+                        b,
+                        c,
+                        self.num_patches,
+                        self.patch_size,
+                        self.num_patches,
+                        self.patch_size,
+                    ))?
+                    .permute((0, 1, 2, 4, 3, 5))?
+                    .flatten(1, 3)?,
+            )?
             .broadcast_add(&self.pos_emb)?;
 
         let mut x = Tensor::cat(&[self.cls_emb.expand((b, 1, self.d_model))?, x], 1)?;
@@ -211,14 +233,10 @@ impl ViT {
         for block in self.blocks.iter() {
             x = block.forward(&x)?;
         }
-        
-        let prior = self.patch_head.forward(
-            &x.i((.., 1..))?
-        )?;
 
-        let value = self.cls_head.forward(
-            &x.i((.., 0))?
-        )?;
+        let prior = self.patch_head.forward(&x.i((.., 1..))?)?;
+
+        let value = self.cls_head.forward(&x.i((.., 0))?)?;
 
         Ok((prior, value))
     }

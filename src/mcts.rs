@@ -1,6 +1,9 @@
 use std::iter;
 
-use crate::{board::{Board, Player, Winner}, model::evaluate_board};
+use crate::{
+    board::{Board, Player, Winner},
+    model::evaluate_board,
+};
 
 const C_PUCT: f32 = 4.0;
 const VIRTUAL_LOSS: f32 = -3.0;
@@ -11,7 +14,7 @@ struct MCTSNode {
     prior: Vec<f32>,
     total_action_value: Vec<f32>,
 
-    children: Vec<Option<MCTSNode>>
+    children: Vec<Option<MCTSNode>>,
 }
 
 impl MCTSNode {
@@ -23,7 +26,7 @@ impl MCTSNode {
             prior,
             total_action_value: Vec::from_iter(iter::repeat_n(0., n)),
 
-            children: Vec::from_iter(iter::repeat_n(None, n))
+            children: Vec::from_iter(iter::repeat_n(None, n)),
         }
     }
 
@@ -31,25 +34,22 @@ impl MCTSNode {
         let sqrt_parent_visits = (parent_visits as f32).sqrt();
 
         (0..self.prior.len())
-            .map(
-                |idx| {
-                    (
-                        if self.visit_count[idx] == 0 {
-                            0.
-                        } else {
-                            self.total_action_value[idx] / self.visit_count[idx] as f32
-                        }
-                    ) +
-                    C_PUCT * self.prior[idx] * (
-                        sqrt_parent_visits / (1. + self.visit_count[idx] as f32)
-                    )
-                }
-            )
+            .map(|idx| {
+                (if self.visit_count[idx] == 0 {
+                    0.
+                } else {
+                    self.total_action_value[idx] / self.visit_count[idx] as f32
+                }) + C_PUCT
+                    * self.prior[idx]
+                    * (sqrt_parent_visits / (1. + self.visit_count[idx] as f32))
+            })
             .enumerate()
-            .max_by(|(_, v1), (_, v2)| if v1 < v2 {
-                std::cmp::Ordering::Less
-            } else {
-                std::cmp::Ordering::Greater
+            .max_by(|(_, v1), (_, v2)| {
+                if v1 < v2 {
+                    std::cmp::Ordering::Less
+                } else {
+                    std::cmp::Ordering::Greater
+                }
             })
             .unwrap()
             .0
@@ -60,14 +60,14 @@ impl MCTSNode {
             return match winner {
                 Winner::Tie => 0.,
                 Winner::Player(Player::PlayerOne) => 1.,
-                Winner::Player(Player::PlayerTwo) => -1.
+                Winner::Player(Player::PlayerTwo) => -1.,
             };
         }
 
         let player = board.player();
 
         let child_idx = self.best_child_idx(parent_visits);
-        
+
         let action = board.legal_actions()[child_idx];
 
         board.make_action(&action);
@@ -86,7 +86,7 @@ impl MCTSNode {
 
         self.total_action_value[child_idx] += match player {
             Player::PlayerOne => action_value,
-            Player::PlayerTwo => -action_value
+            Player::PlayerTwo => -action_value,
         } - VIRTUAL_LOSS;
         self.visit_count[child_idx] += 1;
 

@@ -1,13 +1,13 @@
 #[derive(Clone, Copy)]
 pub enum Player {
     PlayerOne,
-    PlayerTwo
+    PlayerTwo,
 }
 
 #[derive(Clone, Copy)]
 pub enum Winner {
     Tie,
-    Player(Player)
+    Player(Player),
 }
 
 #[derive(Clone)]

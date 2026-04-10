@@ -1,8 +1,8 @@
 # AlphaZero Othello
 
-A deep learning reinforcement learning program for the game of (Othello)[https://en.wikipedia.org/wiki/Reversi].
+A deep learning reinforcement learning program for the game of [Othello](https://en.wikipedia.org/wiki/Reversi).
 
-The training routine is based on (AlphaGo Zero)[https://discovery.ucl.ac.uk/id/eprint/10045895/1/agz_unformatted_nature.pdf].
+The training routine is based on [AlphaGo Zero](https://discovery.ucl.ac.uk/id/eprint/10045895/1/agz_unformatted_nature.pdf).
 
 ## Self Play
 

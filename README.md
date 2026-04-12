@@ -35,9 +35,11 @@ We then backtrack up the tree, updating each $(b_t, a_t)$ like so:
 Note that the network $f_\theta$ always produces its valuation from the perspective of black, hence the need for negating the value from white's perspective.
 
 After all $S$ simulations have been run, the action $a$ is selected based on the probability distribution
+
 $$
 p(a | b_0) = \frac{N(b_0, a)^{1 / \tau}}{\sum_{a'} N(b_0, a')^{1/\tau}}
 $$
+
 where $\tau > 0$ is the temperature.
 
 Note that the already explored descendants of $b_1$ are kept in the tree to reduce unnecessary re-exploration.
@@ -50,7 +52,9 @@ For each game of self play, we store:
 3. The distribution $p^*(a | b_t) = \frac{N(b_t, a)}{\sum_{a'} N(b_t, a')}$ for each game state $b_t$
 
 Given state $b_t$ the model's output $f_\theta(b_t) = (\pi(a | b_t), v_{b_t})$ is trained to minimise
+
 $$
 \mathcal{L}(b_t) = ||v^* - v_{b_t}||_2^2 - \lambda\pi\log p^*
 $$
+
 where $\lambda > 0$ is a scaling factor.

@@ -1,4 +1,7 @@
-use std::{iter, mem};
+use std::{
+    iter, mem,
+    sync::{Arc, Mutex},
+};
 
 use rand::{
     distr::{Distribution, weighted::WeightedIndex},
@@ -11,15 +14,14 @@ use crate::{
 };
 
 const C_PUCT: f32 = 4.0;
-const VIRTUAL_LOSS: f32 = -3.0;
+const VIRTUAL_LOSS: i32 = 3;
 
-#[derive(Clone)]
 struct MCTSNode {
-    visit_count: Vec<usize>,
+    visit_count: Vec<isize>,
     prior: Vec<f32>,
     total_action_value: Vec<f32>,
 
-    children: Vec<Option<MCTSNode>>,
+    children: Vec<Option<Arc<Mutex<MCTSNode>>>>,
 }
 
 impl MCTSNode {
@@ -31,12 +33,12 @@ impl MCTSNode {
             prior,
             total_action_value: Vec::from_iter(iter::repeat_n(0., n)),
 
-            children: Vec::from_iter(iter::repeat_n(None, n)),
+            children: Vec::from_iter((0..n).map(|_| None)),
         }
     }
 
     fn best_child_idx(&self) -> usize {
-        let sqrt_total_visits = (self.visit_count.iter().sum::<usize>() as f32).sqrt();
+        let sqrt_total_visits = (self.visit_count.iter().sum::<isize>() as f32).sqrt();
 
         (0..self.prior.len())
             .map(|idx| {
@@ -60,7 +62,7 @@ impl MCTSNode {
             .0
     }
 
-    fn run_simulation(&mut self, mut board: Board) -> f32 {
+    fn run_simulation(node: Arc<Mutex<Self>>, mut board: Board) -> f32 {
         if let Some(winner) = board.winner() {
             return match winner {
                 Winner::Tie => 0.,
@@ -71,29 +73,39 @@ impl MCTSNode {
 
         let player = board.player();
 
-        let child_idx = self.best_child_idx();
+        let child_idx = node.lock().unwrap().best_child_idx();
 
         let action = board.legal_actions()[child_idx];
 
         board.make_action(&action);
 
-        let action_value = if let Some(child) = self.children[child_idx].as_mut() {
-            self.total_action_value[child_idx] += VIRTUAL_LOSS;
+        {
+            let mut node_guard = node.lock().unwrap();
 
-            child.run_simulation(board)
+            node_guard.total_action_value[child_idx] -= VIRTUAL_LOSS as f32;
+            node_guard.visit_count[child_idx] += VIRTUAL_LOSS as isize;
+        }
+
+        let action_value = if let Some(child) = node.lock().unwrap().children[child_idx].clone() {
+            Self::run_simulation(child, board)
         } else {
             let (prior, action_value) = evaluate_board(&board);
 
-            self.children[child_idx] = Some(MCTSNode::new(prior));
+            node.lock().unwrap().children[child_idx] =
+                Some(Arc::new(Mutex::new(MCTSNode::new(prior))));
 
             action_value
         };
 
-        self.total_action_value[child_idx] += match player {
-            Player::Black => action_value,
-            Player::White => -action_value,
-        } - VIRTUAL_LOSS;
-        self.visit_count[child_idx] += 1;
+        {
+            let mut node_guard = node.lock().unwrap();
+
+            node_guard.total_action_value[child_idx] += match player {
+                Player::Black => action_value,
+                Player::White => -action_value,
+            } + VIRTUAL_LOSS as f32;
+            node_guard.visit_count[child_idx] += 1 - VIRTUAL_LOSS as isize;
+        };
 
         action_value
     }
@@ -101,7 +113,7 @@ impl MCTSNode {
 
 pub struct MCTS {
     board: Board,
-    root: MCTSNode,
+    root: Arc<Mutex<MCTSNode>>,
 }
 
 impl MCTS {
@@ -112,7 +124,7 @@ impl MCTS {
 
         Self {
             board,
-            root: MCTSNode::new(prior),
+            root: Arc::new(Mutex::new(MCTSNode::new(prior))),
         }
     }
 
@@ -123,7 +135,7 @@ impl MCTS {
     pub fn run_simulations(&mut self, num_simulations: usize) {
         // TODO: Make parallel
         for _ in 0..num_simulations {
-            self.root.run_simulation(self.board.clone());
+            MCTSNode::run_simulation(self.root.clone(), self.board.clone());
         }
     }
 
@@ -132,20 +144,28 @@ impl MCTS {
 
         self.board.make_action(&action);
 
-        if self.root.children[action_idx].is_some() {
-            let new_root = self.root.children.remove(action_idx).unwrap();
+        if self.root.lock().unwrap().children[action_idx].is_some() {
+            let new_root = self
+                .root
+                .lock()
+                .unwrap()
+                .children
+                .remove(action_idx)
+                .unwrap();
 
             let _ = mem::replace(&mut self.root, new_root);
         } else {
             let (prior, _) = evaluate_board(&self.board);
 
-            self.root = MCTSNode::new(prior);
+            self.root = Arc::new(Mutex::new(MCTSNode::new(prior)));
         }
     }
 
     pub fn sample_action(&self, temperature: f32) -> Action {
         let weights = self
             .root
+            .lock()
+            .unwrap()
             .visit_count
             .iter()
             .map(|c| (*c as f32).powf(1. / temperature))

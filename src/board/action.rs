@@ -2,7 +2,7 @@ use std::{error::Error, fmt::Display, str::FromStr};
 
 use crate::board::GRID_SIZE;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Action(pub usize, pub usize);
 
 #[derive(Debug)]
@@ -34,7 +34,7 @@ impl FromStr for Action {
             let bytes = s.as_bytes();
 
             let col = bytes[0] as isize - 65;
-            let row = bytes[1] as isize - 48;
+            let row = bytes[1] as isize - 49;
 
             if col < 0 || row < 0 {
                 Err(ActionParseError::SyntaxError)

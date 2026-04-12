@@ -24,7 +24,16 @@ pub struct Board {
     player: Player,
 }
 
-const DIRECTIONS: [(isize, isize); 6] = [(1, -1), (1, 0), (1, 1), (-1, -1), (-1, 0), (-1, 1)];
+const DIRECTIONS: [(isize, isize); 8] = [
+    (1, -1),
+    (1, 0),
+    (1, 1),
+    (-1, -1),
+    (-1, 0),
+    (-1, 1),
+    (0, -1),
+    (0, 1),
+];
 
 impl Board {
     pub fn new() -> Self {
@@ -162,8 +171,11 @@ impl Board {
 
         let (x, y) = (action.0 as isize, action.1 as isize);
 
+        self.grid[y as usize][x as usize] = Some(player);
+
         for i in self.legal_directions(action).into_iter() {
             let (dx, dy) = DIRECTIONS[i];
+
             let mut n = 1;
 
             while self.grid[(y + n * dy) as usize][(x + n * dx) as usize] == Some(opponent) {

@@ -1,7 +1,12 @@
-use std::iter;
+use std::{iter, mem};
+
+use rand::{
+    distr::{Distribution, weighted::WeightedIndex},
+    rng,
+};
 
 use crate::{
-    board::{Board, Player, Winner},
+    board::{Board, Player, Winner, action::Action},
     model::evaluate_board,
 };
 
@@ -30,8 +35,8 @@ impl MCTSNode {
         }
     }
 
-    fn best_child_idx(&self, parent_visits: usize) -> usize {
-        let sqrt_parent_visits = (parent_visits as f32).sqrt();
+    fn best_child_idx(&self) -> usize {
+        let sqrt_total_visits = (self.visit_count.iter().sum::<usize>() as f32).sqrt();
 
         (0..self.prior.len())
             .map(|idx| {
@@ -41,7 +46,7 @@ impl MCTSNode {
                     self.total_action_value[idx] / self.visit_count[idx] as f32
                 }) + C_PUCT
                     * self.prior[idx]
-                    * (sqrt_parent_visits / (1. + self.visit_count[idx] as f32))
+                    * (sqrt_total_visits / (1. + self.visit_count[idx] as f32))
             })
             .enumerate()
             .max_by(|(_, v1), (_, v2)| {
@@ -55,7 +60,7 @@ impl MCTSNode {
             .0
     }
 
-    async fn run_simulation(&mut self, parent_visits: usize, mut board: Board) -> f32 {
+    fn run_simulation(&mut self, mut board: Board) -> f32 {
         if let Some(winner) = board.winner() {
             return match winner {
                 Winner::Tie => 0.,
@@ -66,7 +71,7 @@ impl MCTSNode {
 
         let player = board.player();
 
-        let child_idx = self.best_child_idx(parent_visits);
+        let child_idx = self.best_child_idx();
 
         let action = board.legal_actions()[child_idx];
 
@@ -75,9 +80,9 @@ impl MCTSNode {
         let action_value = if let Some(child) = self.children[child_idx].as_mut() {
             self.total_action_value[child_idx] += VIRTUAL_LOSS;
 
-            Box::pin(child.run_simulation(self.visit_count[child_idx], board)).await
+            child.run_simulation(board)
         } else {
-            let (prior, action_value) = evaluate_board(&board).await;
+            let (prior, action_value) = evaluate_board(&board);
 
             self.children[child_idx] = Some(MCTSNode::new(prior));
 
@@ -91,5 +96,76 @@ impl MCTSNode {
         self.visit_count[child_idx] += 1;
 
         action_value
+    }
+}
+
+pub struct MCTS {
+    board: Board,
+    root: MCTSNode,
+}
+
+impl MCTS {
+    pub fn new() -> Self {
+        let board = Board::new();
+
+        let (prior, _) = evaluate_board(&board);
+
+        Self {
+            board,
+            root: MCTSNode::new(prior),
+        }
+    }
+
+    pub fn board(&self) -> &Board {
+        &self.board
+    }
+
+    pub fn run_simulations(&mut self, num_simulations: usize) {
+        // TODO: Make parallel
+        for _ in 0..num_simulations {
+            self.root.run_simulation(self.board.clone());
+        }
+    }
+
+    fn make_action_index(&mut self, action_idx: usize) {
+        let action = self.board.legal_actions()[action_idx];
+
+        self.board.make_action(&action);
+
+        if self.root.children[action_idx].is_some() {
+            let new_root = self.root.children.remove(action_idx).unwrap();
+
+            let _ = mem::replace(&mut self.root, new_root);
+        } else {
+            let (prior, _) = evaluate_board(&self.board);
+
+            self.root = MCTSNode::new(prior);
+        }
+    }
+
+    pub fn sample_action(&self, temperature: f32) -> Action {
+        let weights = self
+            .root
+            .visit_count
+            .iter()
+            .map(|c| (*c as f32).powf(1. / temperature))
+            .collect::<Vec<_>>();
+
+        let dist = WeightedIndex::new(&weights).unwrap();
+
+        self.board.legal_actions()[dist.sample(&mut rng())]
+    }
+
+    pub fn make_action(&mut self, Action(x, y): &Action) {
+        let action_idx = self
+            .board
+            .legal_actions()
+            .into_iter()
+            .enumerate()
+            .find(|(_, Action(a_x, a_y))| a_x == x && a_y == y)
+            .unwrap()
+            .0;
+
+        self.make_action_index(action_idx);
     }
 }

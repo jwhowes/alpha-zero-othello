@@ -89,24 +89,30 @@ impl Board {
         self.player
     }
 
-    pub fn winner(&self) -> Option<Winner> {
-        if self.legal_actions().is_empty() {
-            let mut black_count = 0;
-            let mut white_count = 0;
+    pub fn score(&self) -> i32 {
+        let mut black_count = 0;
+        let mut white_count = 0;
 
-            for x in 0..GRID_SIZE {
-                for y in 0..GRID_SIZE {
-                    match self.grid[y][x] {
-                        None => {}
-                        Some(Player::Black) => black_count += 1,
-                        Some(Player::White) => white_count += 1,
-                    }
+        for x in 0..GRID_SIZE {
+            for y in 0..GRID_SIZE {
+                match self.grid[y][x] {
+                    None => {}
+                    Some(Player::Black) => black_count += 1,
+                    Some(Player::White) => white_count += 1,
                 }
             }
+        }
 
-            if black_count == white_count {
+        black_count - white_count
+    }
+
+    pub fn winner(&self) -> Option<Winner> {
+        if self.legal_actions().is_empty() {
+            let score = self.score();
+
+            if score == 0 {
                 Some(Winner::Tie)
-            } else if black_count > white_count {
+            } else if score > 0 {
                 Some(Winner::Player(Player::Black))
             } else {
                 Some(Winner::Player(Player::White))

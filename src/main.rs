@@ -3,26 +3,44 @@ use std::{
     io::{Write, stdin, stdout},
 };
 
-use alpha_zero_othello::board::{Board, action::Action};
+use alpha_zero_othello::{
+    board::{Player, action::Action},
+    mcts::MCTS,
+};
+
+const SIMS_PER_MOVE: usize = 1_000;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut board = Board::new();
+    let mut mcts = MCTS::new();
 
-    while board.winner().is_none() {
-        let mut buf = String::new();
+    while mcts.board().winner().is_none() {
+        let action = match mcts.board().player() {
+            Player::Black => {
+                mcts.board().display();
 
-        board.display();
+                let mut buf = String::new();
 
-        print!("Enter your move: ");
-        stdout().flush()?;
+                print!("Enter your move: ");
 
-        stdin().read_line(&mut buf)?;
+                let _ = stdout().flush()?;
 
-        let action: Action = buf.trim().parse()?;
+                let _ = stdin().read_line(&mut buf)?;
 
-        println!("{:?}", action);
+                buf.trim().parse::<Action>()?
+            }
 
-        board.make_action(&action);
+            _ => {
+                mcts.run_simulations(SIMS_PER_MOVE);
+
+                let action = mcts.sample_action(1.0);
+
+                println!("Computer move: {}", &action);
+
+                action
+            }
+        };
+
+        mcts.make_action(&action);
     }
 
     Ok(())

@@ -5,6 +5,17 @@ use crate::board::GRID_SIZE;
 #[derive(Debug, Clone, Copy)]
 pub struct Action(pub usize, pub usize);
 
+impl Display for Action {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}{}",
+            char::from_u32(self.0 as u32 + 65).unwrap(),
+            self.1
+        )
+    }
+}
+
 #[derive(Debug)]
 pub enum ActionParseError {
     OutOfBounds,

@@ -1,3 +1,3 @@
 pub mod board;
-mod mcts;
+pub mod mcts;
 mod model;

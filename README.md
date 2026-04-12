@@ -30,14 +30,16 @@ When we reach a leaf $b_T$, we use the neural network to compute $f_\theta(b_T) 
 
 We then backtrack up the tree, updating each $(b_t, a_t)$ like so:
 1. $N(b_t, a_t) \rightarrow N(b_t, a_t + 1)$
-2. $Q(b_t, a_t) \rightarrow Q(b_t, a_t) + v_{b_T}$ if $b_t$ is white to move, otherwise $Q(b_t, a_t) \rightarrow Q(b_t, a_t) - v_{b_T}$
+2. $Q(b_t, a_t) \rightarrow Q(b_t, a_t) + v_{b_T}$ if $b_t$ is black to move, otherwise $Q(b_t, a_t) \rightarrow Q(b_t, a_t) - v_{b_T}$
 
-Note that the network $f_\theta$ always produces its valuation from the perspective of white, hence the need for negating the value from black's perspective.
+Note that the network $f_\theta$ always produces its valuation from the perspective of black, hence the need for negating the value from white's perspective.
 
 After all $S$ simulations have been run, the action $a$ is selected based on the probability distribution
+
 $$
 p(a | b_0) = \frac{N(b_0, a)^{1 / \tau}}{\sum_{a'} N(b_0, a')^{1/\tau}}
 $$
+
 where $\tau > 0$ is the temperature.
 
 Note that the already explored descendants of $b_1$ are kept in the tree to reduce unnecessary re-exploration.
@@ -46,11 +48,13 @@ Note that the already explored descendants of $b_1$ are kept in the tree to redu
 
 For each game of self play, we store:
 1. The sequence of game states and actions $(b_0, a_0), ..., (b_{T-1}, a_{T-1})$
-2. The game's value $v^*$ which is set to $1$ if white won, $-1$ if black won and $0$ for a tie
+2. The game's value $v^*$ which is set to $1$ if black won, $-1$ if white won and $0$ for a tie
 3. The distribution $p^*(a | b_t) = \frac{N(b_t, a)}{\sum_{a'} N(b_t, a')}$ for each game state $b_t$
 
 Given state $b_t$ the model's output $f_\theta(b_t) = (\pi(a | b_t), v_{b_t})$ is trained to minimise
+
 $$
 \mathcal{L}(b_t) = ||v^* - v_{b_t}||_2^2 - \lambda\pi\log p^*
 $$
+
 where $\lambda > 0$ is a scaling factor.

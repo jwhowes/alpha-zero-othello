@@ -59,8 +59,8 @@ impl MCTSNode {
         if let Some(winner) = board.winner() {
             return match winner {
                 Winner::Tie => 0.,
-                Winner::Player(Player::PlayerOne) => 1.,
-                Winner::Player(Player::PlayerTwo) => -1.,
+                Winner::Player(Player::Black) => 1.,
+                Winner::Player(Player::White) => -1.,
             };
         }
 
@@ -85,8 +85,8 @@ impl MCTSNode {
         };
 
         self.total_action_value[child_idx] += match player {
-            Player::PlayerOne => action_value,
-            Player::PlayerTwo => -action_value,
+            Player::Black => action_value,
+            Player::White => -action_value,
         } - VIRTUAL_LOSS;
         self.visit_count[child_idx] += 1;
 

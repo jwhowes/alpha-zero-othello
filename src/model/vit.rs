@@ -1,6 +1,4 @@
-use std::iter;
-
-use candle_core::{CudaDevice, Device, IndexOp, Result, Tensor, Var};
+use candle_core::{Device, IndexOp, Result, Tensor, Var};
 use candle_nn::{
     LayerNorm, Linear, Module,
     ops::{silu, softmax},
@@ -209,7 +207,7 @@ impl ViT {
         Returns prior (B x h x w) and value (B)
     */
     fn forward(&self, image: &Tensor) -> Result<(Tensor, Tensor)> {
-        let (b, c, h, w) = image.dims4()?;
+        let (b, c, _h, _w) = image.dims4()?;
 
         let x = self
             .patch_stem

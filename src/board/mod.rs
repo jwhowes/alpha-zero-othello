@@ -1,3 +1,9 @@
+use std::char;
+
+use crate::board::action::Action;
+
+pub mod action;
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum Player {
     Black,
@@ -17,9 +23,6 @@ pub struct Board {
     grid: [[Option<Player>; GRID_SIZE]; GRID_SIZE],
     player: Player,
 }
-
-#[derive(Clone, Copy)]
-pub struct Action(usize, usize);
 
 const DIRECTIONS: [(isize, isize); 6] = [(1, -1), (1, 0), (1, 1), (-1, -1), (-1, 0), (-1, 1)];
 
@@ -176,7 +179,15 @@ impl Board {
     }
 
     pub fn display(&self) {
+        print!("  ");
+        for i in 0..GRID_SIZE {
+            print!("{} ", char::from_u32(i as u32 + 65).unwrap());
+        }
+
+        println!();
         for y in 0..GRID_SIZE {
+            print!("{} ", y + 1);
+
             for x in 0..GRID_SIZE {
                 let c = match self.grid[y][x] {
                     None => "-",

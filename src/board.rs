@@ -174,4 +174,19 @@ impl Board {
             self.player = player;
         }
     }
+
+    pub fn display(&self) {
+        for y in 0..GRID_SIZE {
+            for x in 0..GRID_SIZE {
+                let c = match self.grid[y][x] {
+                    None => "-",
+                    Some(Player::Black) => "x",
+                    Some(Player::White) => "o",
+                };
+                print!("{} ", c);
+            }
+
+            println!();
+        }
+    }
 }

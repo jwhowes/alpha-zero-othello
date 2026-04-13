@@ -18,7 +18,7 @@ During self play, the model performs $S$ simulations per action. Each simulation
 Given $b_t$, the state $b_{t+1} | b_t, a_t$ is selected by choosing the edge $(b_t, a_t)$ which maximises
 
 ```math
-W(b_t, a_t) = \frac{Q(b_t, a_t)}{N(b_t, a_t)} + c \pi(a_t | b_t) \frac{\sqrt{\sum_{a_{t-1}}N(b_{t-1}, a_{t-1})}}{1 + N(b_t, a_t)}
+W(b_t, a_t) = \frac{Q(b_t, a_t)}{N(b_t, a_t)} + c \pi(a_t | b_t) \frac{\sqrt{\sum_{a}N(b_{t-1}, a)}}{1 + N(b_t, a_t)}
 ```
 
 where $c > 0$ is a hyperparameter controlling the balance of exploration vs. exploitation.

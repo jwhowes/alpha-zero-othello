@@ -1,8 +1,8 @@
 use std::{iter::zip, sync::mpsc};
 
-use candle_core::{Device, Result, Tensor};
+use candle_core::{Result, Tensor};
 
-use crate::{board::Board, model::vit::ViT};
+use crate::model::vit::ViT;
 
 pub type EvaluateResponse = (Vec<Vec<f32>>, f32);
 

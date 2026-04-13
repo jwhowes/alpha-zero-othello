@@ -16,9 +16,11 @@ During self play, a sub tree of the current game tree is maintained and updated.
 During self play, the model performs $S$ simulations per action. Each simulation adds a node to the game tree. To add a node, we begin from the root $b_0$ and iteratively traverse through $b_1, b_2$ and so on until we reach a leaf $b_T$ at step $T$.
 
 Given $b_t$, the state $b_{t+1} | b_t, a_t$ is selected by choosing the edge $(b_t, a_t)$ which maximises
-$$
+
+```math
 W(b_t, a_t) = \frac{Q(b_t, a_t)}{N(b_t, a_t)} + c \pi(a_t | b_t) \frac{\sqrt{\sum_{a_{t-1}}N(b_{t-1}, a_{t-1})}}{1 + N(b_t, a_t)}
-$$
+```
+
 where $c > 0$ is a hyperparameter controlling the balance of exploration vs. exploitation.
 
 An exception to the above is if if $N(b_t, a_t) = 0$ (i.e. the edge is unexplored) in which case we replace $\frac{Q(b_t, a_t)}{N(b_t, a_t)}$ with $0$.
@@ -36,9 +38,9 @@ Note that the network $f_\theta$ always produces its valuation from the perspect
 
 After all $S$ simulations have been run, the action $a$ is selected based on the probability distribution
 
-$$
+```math
 p(a | b_0) = \frac{N(b_0, a)^{1 / \tau}}{\sum_{a'} N(b_0, a')^{1/\tau}}
-$$
+```
 
 where $\tau > 0$ is the temperature.
 
@@ -53,8 +55,8 @@ For each game of self play, we store:
 
 Given state $b_t$ the model's output $f_\theta(b_t) = (\pi(a | b_t), v_{b_t})$ is trained to minimise
 
-$$
+```math
 \mathcal{L}(b_t) = ||v^* - v_{b_t}||_2^2 - \lambda\pi\log p^*
-$$
+```
 
 where $\lambda > 0$ is a scaling factor.

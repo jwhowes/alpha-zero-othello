@@ -16,7 +16,7 @@ pub struct AlphaZeroSelfPlay<const NUM_WORKERS: usize> {
 }
 
 impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
-    pub fn new(vit_config: &ViTConfig, device: &Device) -> Result<Self> {
+    pub fn new(vit_config: ViTConfig, device: &Device) -> Result<Self> {
         Ok(Self {
             vit: ViT::from_config(vit_config, device)?,
         })
@@ -36,7 +36,7 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
         let mut mcts = MCTS::<NUM_WORKERS>::new(queue_tx.clone(), device);
 
         thread::scope(|s| {
-            s.spawn(move || evaluation_thread(&self.vit, queue_rx, device));
+            s.spawn(move || evaluation_thread(&self.vit, queue_rx));
 
             while mcts.board().winner().is_none() {
                 mcts.run_simulations(sims_per_move, queue_tx.clone(), device);

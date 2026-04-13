@@ -149,11 +149,12 @@ pub struct ViT {
     d_model: usize,
 }
 
+#[derive(Clone, Copy)]
 pub struct ViTConfig {
-    d_model: usize,
-    n_heads: usize,
-    n_layers: usize,
-    patch_size: usize,
+    pub d_model: usize,
+    pub n_heads: usize,
+    pub n_layers: usize,
+    pub patch_size: usize,
 }
 
 impl ViT {
@@ -202,7 +203,7 @@ impl ViT {
         })
     }
 
-    pub fn from_config(config: &ViTConfig, device: &Device) -> Result<Self> {
+    pub fn from_config(config: ViTConfig, device: &Device) -> Result<Self> {
         Self::new(
             GRID_SIZE,
             3,

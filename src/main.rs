@@ -1,47 +1,35 @@
-use std::{
-    error::Error,
-    io::{Write, stdin, stdout},
-};
+use std::error::Error;
 
 use alpha_zero_othello::{
-    board::{Player, action::Action},
-    mcts::MCTS,
+    board::{Player, Winner},
+    model::vit::ViTConfig,
+    train::self_play::AlphaZeroSelfPlay,
 };
-
-const SIMS_PER_MOVE: usize = 1_000;
-const NUM_WORKERS: usize = 4;
+use candle_core::Device;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut mcts: MCTS<NUM_WORKERS> = MCTS::new();
+    let device = Device::Cpu;
 
-    while mcts.board().winner().is_none() {
-        let action = match mcts.board().player() {
-            Player::Black => {
-                mcts.board().display();
+    let self_play: AlphaZeroSelfPlay<4> = AlphaZeroSelfPlay::new(
+        ViTConfig {
+            d_model: 64,
+            n_heads: 4,
+            n_layers: 4,
+            patch_size: 1,
+        },
+        &device,
+    )?;
 
-                let mut buf = String::new();
+    let history = self_play.generate_history(1_000, 1.0, &device);
 
-                print!("Enter your move: ");
+    match history.winner() {
+        Winner::Tie => println!("Tie!"),
+        Winner::Player(Player::Black) => println!("Black Won!"),
+        Winner::Player(Player::White) => println!("White Won!"),
+    }
 
-                let _ = stdout().flush()?;
-
-                let _ = stdin().read_line(&mut buf)?;
-
-                buf.trim().parse::<Action>()?
-            }
-
-            _ => {
-                mcts.run_simulations(SIMS_PER_MOVE);
-
-                let action = mcts.sample_action(1.0);
-
-                println!("Computer move: {}", &action);
-
-                action
-            }
-        };
-
-        mcts.make_action(&action);
+    for state in history.iter() {
+        state.board().display();
     }
 
     Ok(())

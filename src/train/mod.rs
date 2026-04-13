@@ -1,2 +1,2 @@
 mod data;
-mod self_play;
+pub mod self_play;

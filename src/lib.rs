@@ -1,4 +1,4 @@
 pub mod board;
-pub mod mcts;
-mod model;
-mod train;
+mod mcts;
+pub mod model;
+pub mod train;

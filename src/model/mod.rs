@@ -1,17 +1,28 @@
+use candle_core::{Device, Result};
+use oneshot::Receiver;
+use std::{sync::mpsc, time::Duration};
+
+use crate::{board::Board, model::queue::EvaluateRequest};
+
+pub mod queue;
 mod vit;
-
-use std::iter;
-
-use crate::board::Board;
 
 /*
  Evaluates a board position, returning the prior probabilities and non-subjective value
 */
-pub fn evaluate_board(board: &Board) -> (Vec<f32>, f32) {
-    let n = board.legal_actions().len();
+pub fn evaluate_board(
+    board: &Board,
+    queue_tx: mpsc::Sender<EvaluateRequest>,
+    device: &Device,
+) -> Result<(Vec<f32>, f32)> {
+    let (tx, rx) = oneshot::channel();
 
-    (
-        Vec::from_iter(iter::repeat_n(1. / (n as f32), n)),
-        (board.score() as f32) / 64.,
-    )
+    let board_tensor = board.to_tensor(device)?;
+
+    queue_tx.send((board_tensor, tx)).unwrap();
+
+    let (mut prior, value) = rx.recv().unwrap();
+
+    // TODO: Normalize prior over legal moves (maybe in the evaluation thread?)
+    Ok((prior.remove(0), value))
 }

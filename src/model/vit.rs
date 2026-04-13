@@ -4,6 +4,8 @@ use candle_nn::{
     ops::{silu, softmax},
 };
 
+use crate::board::GRID_SIZE;
+
 struct Attention {
     w_q: Linear,
     w_k: Linear,
@@ -147,16 +149,21 @@ pub struct ViT {
     d_model: usize,
 }
 
+pub struct ViTConfig {
+    d_model: usize,
+    n_heads: usize,
+    n_layers: usize,
+    patch_size: usize,
+}
+
 impl ViT {
-    pub fn new(
+    fn new(
         image_size: usize,
         in_channels: usize,
         d_model: usize,
         n_heads: usize,
         n_layers: usize,
         patch_size: usize,
-        out_cls: usize,
-        out_channels: usize,
         device: &Device,
     ) -> Result<Self> {
         let num_patches = image_size / patch_size;
@@ -184,18 +191,10 @@ impl ViT {
                 .collect::<Result<Vec<ViTBlock>>>()?,
 
             patch_head: Linear::new(
-                Tensor::randn(
-                    0f32,
-                    0.1_f32,
-                    (out_channels * patch_size * patch_size, d_model),
-                    device,
-                )?,
+                Tensor::randn(0f32, 0.1_f32, (patch_size * patch_size, d_model), device)?,
                 None,
             ),
-            cls_head: Linear::new(
-                Tensor::randn(0f32, 0.1_f32, (out_cls, d_model), device)?,
-                None,
-            ),
+            cls_head: Linear::new(Tensor::randn(0f32, 0.1_f32, (1, d_model), device)?, None),
 
             patch_size,
             num_patches,
@@ -203,11 +202,23 @@ impl ViT {
         })
     }
 
+    pub fn from_config(config: &ViTConfig, device: &Device) -> Result<Self> {
+        Self::new(
+            GRID_SIZE,
+            3,
+            config.d_model,
+            config.n_heads,
+            config.n_layers,
+            config.patch_size,
+            device,
+        )
+    }
+
     /*
         Returns prior (B x h x w) and value (B)
     */
-    fn forward(&self, image: &Tensor) -> Result<(Tensor, Tensor)> {
-        let (b, c, _h, _w) = image.dims4()?;
+    pub fn forward(&self, image: &Tensor) -> Result<(Tensor, Tensor)> {
+        let (b, c, h, w) = image.dims4()?;
 
         let x = self
             .patch_stem
@@ -232,9 +243,21 @@ impl ViT {
             x = block.forward(&x)?;
         }
 
-        let prior = self.patch_head.forward(&x.i((.., 1..))?)?;
+        // B x (n * n) x (p * p)
+        let prior = self
+            .patch_head
+            .forward(&x.i((.., 1..))?)?
+            .reshape((
+                b,
+                self.num_patches,
+                self.num_patches,
+                self.patch_size,
+                self.patch_size,
+            ))?
+            .permute((0, 1, 3, 2, 4))?
+            .reshape((b, h, w))?;
 
-        let value = self.cls_head.forward(&x.i((.., 0))?)?;
+        let value = self.cls_head.forward(&x.i((.., 0))?)?.squeeze(1)?;
 
         Ok((prior, value))
     }

@@ -1,5 +1,7 @@
 use std::char;
 
+use candle_core::{Device, Result, Tensor};
+
 use crate::board::action::Action;
 
 pub mod action;
@@ -16,7 +18,7 @@ pub enum Winner {
     Player(Player),
 }
 
-const GRID_SIZE: usize = 8;
+pub const GRID_SIZE: usize = 8;
 
 #[derive(Clone)]
 pub struct Board {
@@ -194,6 +196,34 @@ impl Board {
         if self.legal_actions().is_empty() {
             self.player = player;
         }
+    }
+
+    pub fn to_tensor(&self, device: &Device) -> Result<Tensor> {
+        Tensor::from_vec(
+            (0..GRID_SIZE)
+                .map(|y| {
+                    (0..GRID_SIZE)
+                        .map(move |x| {
+                            match self.grid[y][x] {
+                                None => [1., 0., 0.],
+                                Some(cell_player) => {
+                                    if self.player == cell_player {
+                                        [0., 1., 0.]
+                                    } else {
+                                        [0., 0., 1.]
+                                    }
+                                }
+                            }
+                            .into_iter()
+                        })
+                        .flatten()
+                })
+                .flatten()
+                .collect::<Vec<f32>>(),
+            (GRID_SIZE, GRID_SIZE, 3),
+            device,
+        )?
+        .permute((2, 0, 1))
     }
 
     pub fn display(&self) {

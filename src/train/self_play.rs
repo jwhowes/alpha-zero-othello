@@ -22,16 +22,17 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
         })
     }
 
-    // TODO: Add a temperature scheduler
     pub fn generate_history(
         &self,
         sims_per_move: usize,
-        temperature: f32,
+        temperature: f32, // TODO: Add a temperature scheduler
         device: &Device,
     ) -> GameHistory {
-        let states = Vec::new();
+        // TODO: Load model from most recent checkpoint
 
-        let mcts = MCTS::<NUM_WORKERS>::new();
+        let mut states = Vec::new();
+
+        let mut mcts = MCTS::<NUM_WORKERS>::new();
 
         let (queue_tx, queue_rx) = mpsc::channel();
 
@@ -55,7 +56,7 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
 
         GameHistory {
             states,
-            winner: mcts.board().winner.unwrap(),
+            winner: mcts.board().winner().unwrap(),
         }
     }
 }

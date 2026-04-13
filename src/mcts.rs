@@ -4,6 +4,7 @@ use std::{
     thread,
 };
 
+use candle_core::Device;
 use rand::{
     distr::{Distribution, weighted::WeightedIndex},
     rng,
@@ -63,7 +64,12 @@ impl MCTSNode {
             .0
     }
 
-    fn run_simulation(node: Arc<Mutex<Self>>, mut board: Board) -> f32 {
+    fn run_simulation(
+        node: Arc<Mutex<Self>>,
+        mut board: Board,
+        queue_tx: mpsc::Sender<EvaluateRequest>,
+        device: &Device,
+    ) -> f32 {
         if let Some(winner) = board.winner() {
             return match winner {
                 Winner::Tie => 0.,
@@ -88,9 +94,9 @@ impl MCTSNode {
         }
 
         let action_value = if let Some(child) = node.lock().unwrap().children[child_idx].clone() {
-            Self::run_simulation(child, board)
+            Self::run_simulation(child, board, queue_tx, device)
         } else {
-            let (prior, action_value) = evaluate_board(&board);
+            let (prior, action_value) = evaluate_board(&board, queue_tx, device).unwrap();
 
             node.lock().unwrap().children[child_idx] =
                 Some(Arc::new(Mutex::new(MCTSNode::new(prior))));
@@ -118,10 +124,10 @@ pub struct MCTS<const NUM_WORKERS: usize> {
 }
 
 impl<const NUM_WORKERS: usize> MCTS<NUM_WORKERS> {
-    pub fn new() -> Self {
+    pub fn new(queue_tx: mpsc::Sender<EvaluateRequest>, device: &Device) -> Self {
         let board = Board::new();
 
-        let (prior, _) = evaluate_board(&board);
+        let (prior, _) = evaluate_board(&board, queue_tx, device).unwrap();
 
         Self {
             board,
@@ -137,45 +143,58 @@ impl<const NUM_WORKERS: usize> MCTS<NUM_WORKERS> {
         &mut self,
         num_simulations: usize,
         queue_tx: mpsc::Sender<EvaluateRequest>,
+        device: &Device,
     ) {
-        let sim_count = Arc::new(AtomicUsize::new(0));
+        thread::scope(|s| {
+            let sim_count = Arc::new(AtomicUsize::new(0));
 
-        let mut handles = Vec::with_capacity(NUM_WORKERS);
+            for _ in 0..NUM_WORKERS {
+                let worker_sim_count = sim_count.clone();
+                let worker_root = self.root.clone();
+                let worker_board = self.board.clone();
+                let worker_queue_tx = queue_tx.clone();
 
-        for _ in 0..NUM_WORKERS {
-            let worker_sim_count = sim_count.clone();
-            let worker_root = self.root.clone();
-            let worker_board = self.board.clone();
+                s.spawn(move || {
+                    loop {
+                        MCTSNode::run_simulation(
+                            worker_root.clone(),
+                            worker_board.clone(),
+                            worker_queue_tx.clone(),
+                            device,
+                        );
 
-            handles.push(thread::spawn(move || {
-                loop {
-                    MCTSNode::run_simulation(worker_root.clone(), worker_board.clone());
-
-                    if worker_sim_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                        > num_simulations
-                    {
-                        break;
+                        if worker_sim_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                            > num_simulations
+                        {
+                            break;
+                        }
                     }
-                }
-            }));
-        }
-
-        for h in handles {
-            let _ = h.join();
-        }
+                });
+            }
+        });
     }
 
-    pub fn get_distribution(&self) -> Vec<f32> {
-        self.root
+    pub fn get_distribution(&self, temperature: f32) -> Vec<f32> {
+        let weights = self
+            .root
             .lock()
             .unwrap()
             .visit_count
             .iter()
             .map(|c| (*c as f32).powf(1. / temperature))
-            .collect::<Vec<_>>()
+            .collect::<Vec<f32>>();
+
+        let s: f32 = weights.iter().sum();
+
+        weights.into_iter().map(|w| w / s).collect()
     }
 
-    fn make_action_index(&mut self, action_idx: usize) {
+    fn make_action_index(
+        &mut self,
+        action_idx: usize,
+        queue_tx: mpsc::Sender<EvaluateRequest>,
+        device: &Device,
+    ) {
         let action = self.board.legal_actions()[action_idx];
 
         self.board.make_action(&action);
@@ -191,19 +210,24 @@ impl<const NUM_WORKERS: usize> MCTS<NUM_WORKERS> {
 
             let _ = mem::replace(&mut self.root, new_root);
         } else {
-            let (prior, _) = evaluate_board(&self.board).unwrap();
+            let (prior, _) = evaluate_board(&self.board, queue_tx, device).unwrap();
 
             self.root = Arc::new(Mutex::new(MCTSNode::new(prior)));
         }
     }
 
     pub fn sample_action(&self, temperature: f32) -> Action {
-        let dist = WeightedIndex::new(&self.get_distribution()).unwrap();
+        let dist = WeightedIndex::new(&self.get_distribution(temperature)).unwrap();
 
         self.board.legal_actions()[dist.sample(&mut rng())]
     }
 
-    pub fn make_action(&mut self, Action(x, y): &Action) {
+    pub fn make_action(
+        &mut self,
+        Action(x, y): &Action,
+        queue_tx: mpsc::Sender<EvaluateRequest>,
+        device: &Device,
+    ) {
         let action_idx = self
             .board
             .legal_actions()
@@ -213,6 +237,6 @@ impl<const NUM_WORKERS: usize> MCTS<NUM_WORKERS> {
             .unwrap()
             .0;
 
-        self.make_action_index(action_idx);
+        self.make_action_index(action_idx, queue_tx, device);
     }
 }

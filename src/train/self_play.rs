@@ -25,34 +25,34 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
     pub fn generate_history(
         &self,
         sims_per_move: usize,
-        temperature: f32, // TODO: Add a temperature scheduler
+        temperature: f32,
         device: &Device,
     ) -> GameHistory {
         // TODO: Load model from most recent checkpoint
-
         let mut states = Vec::new();
-
-        let mut mcts = MCTS::<NUM_WORKERS>::new();
 
         let (queue_tx, queue_rx) = mpsc::channel();
 
-        let queue_handle = thread::spawn(move || evaluation_thread(&self.vit, queue_rx, device));
+        let mut mcts = MCTS::<NUM_WORKERS>::new(queue_tx.clone(), device);
 
-        while mcts.board().winner().is_none() {
-            mcts.run_simulations(sims_per_move, queue_tx.clone());
+        thread::scope(|s| {
+            s.spawn(move || evaluation_thread(&self.vit, queue_rx, device));
 
-            states.push(GameState {
-                board: mcts.board().clone(),
-                distribution: mcts.get_distribution(),
-            });
+            while mcts.board().winner().is_none() {
+                mcts.run_simulations(sims_per_move, queue_tx.clone(), device);
 
-            let action = mcts.sample_action(temperature);
-            mcts.make_action(&action);
-        }
+                states.push(GameState {
+                    board: mcts.board().clone(),
+                    distribution: mcts.get_distribution(1.0),
+                });
 
-        drop(queue_tx);
+                // TODO: temperature sampler
+                let action = mcts.sample_action(temperature);
+                mcts.make_action(&action, queue_tx.clone(), device);
+            }
 
-        queue_handle.join();
+            drop(queue_tx);
+        });
 
         GameHistory {
             states,

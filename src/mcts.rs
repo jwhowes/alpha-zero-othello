@@ -1,6 +1,6 @@
 use std::{
     iter, mem,
-    sync::{Arc, Mutex, atomic::AtomicUsize},
+    sync::{Arc, Mutex, atomic::AtomicUsize, mpsc},
     thread,
 };
 
@@ -11,7 +11,7 @@ use rand::{
 
 use crate::{
     board::{Board, Player, Winner, action::Action},
-    model::evaluate_board,
+    model::{evaluate_board, queue::EvaluateRequest},
 };
 
 const C_PUCT: f32 = 4.0;
@@ -133,7 +133,11 @@ impl<const NUM_WORKERS: usize> MCTS<NUM_WORKERS> {
         &self.board
     }
 
-    pub fn run_simulations(&mut self, num_simulations: usize) {
+    pub fn run_simulations(
+        &mut self,
+        num_simulations: usize,
+        queue_tx: mpsc::Sender<EvaluateRequest>,
+    ) {
         let sim_count = Arc::new(AtomicUsize::new(0));
 
         let mut handles = Vec::with_capacity(NUM_WORKERS);
@@ -161,6 +165,16 @@ impl<const NUM_WORKERS: usize> MCTS<NUM_WORKERS> {
         }
     }
 
+    pub fn get_distribution(&self) -> Vec<f32> {
+        self.root
+            .lock()
+            .unwrap()
+            .visit_count
+            .iter()
+            .map(|c| (*c as f32).powf(1. / temperature))
+            .collect::<Vec<_>>()
+    }
+
     fn make_action_index(&mut self, action_idx: usize) {
         let action = self.board.legal_actions()[action_idx];
 
@@ -177,23 +191,14 @@ impl<const NUM_WORKERS: usize> MCTS<NUM_WORKERS> {
 
             let _ = mem::replace(&mut self.root, new_root);
         } else {
-            let (prior, _) = evaluate_board(&self.board);
+            let (prior, _) = evaluate_board(&self.board).unwrap();
 
             self.root = Arc::new(Mutex::new(MCTSNode::new(prior)));
         }
     }
 
     pub fn sample_action(&self, temperature: f32) -> Action {
-        let weights = self
-            .root
-            .lock()
-            .unwrap()
-            .visit_count
-            .iter()
-            .map(|c| (*c as f32).powf(1. / temperature))
-            .collect::<Vec<_>>();
-
-        let dist = WeightedIndex::new(&weights).unwrap();
+        let dist = WeightedIndex::new(&self.get_distribution()).unwrap();
 
         self.board.legal_actions()[dist.sample(&mut rng())]
     }

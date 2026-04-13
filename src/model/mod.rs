@@ -1,11 +1,10 @@
 use candle_core::{Device, Result};
-use oneshot::Receiver;
-use std::{sync::mpsc, time::Duration};
+use std::sync::mpsc;
 
 use crate::{board::Board, model::queue::EvaluateRequest};
 
 pub mod queue;
-mod vit;
+pub mod vit;
 
 /*
  Evaluates a board position, returning the prior probabilities and non-subjective value

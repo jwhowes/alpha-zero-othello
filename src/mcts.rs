@@ -1,6 +1,7 @@
 use std::{
     iter, mem,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, atomic::AtomicUsize},
+    thread,
 };
 
 use rand::{
@@ -111,12 +112,12 @@ impl MCTSNode {
     }
 }
 
-pub struct MCTS {
+pub struct MCTS<const NUM_WORKERS: usize> {
     board: Board,
     root: Arc<Mutex<MCTSNode>>,
 }
 
-impl MCTS {
+impl<const NUM_WORKERS: usize> MCTS<NUM_WORKERS> {
     pub fn new() -> Self {
         let board = Board::new();
 
@@ -133,9 +134,30 @@ impl MCTS {
     }
 
     pub fn run_simulations(&mut self, num_simulations: usize) {
-        // TODO: Make parallel
-        for _ in 0..num_simulations {
-            MCTSNode::run_simulation(self.root.clone(), self.board.clone());
+        let sim_count = Arc::new(AtomicUsize::new(0));
+
+        let mut handles = Vec::with_capacity(NUM_WORKERS);
+
+        for _ in 0..NUM_WORKERS {
+            let worker_sim_count = sim_count.clone();
+            let worker_root = self.root.clone();
+            let worker_board = self.board.clone();
+
+            handles.push(thread::spawn(move || {
+                loop {
+                    MCTSNode::run_simulation(worker_root.clone(), worker_board.clone());
+
+                    if worker_sim_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                        > num_simulations
+                    {
+                        break;
+                    }
+                }
+            }));
+        }
+
+        for h in handles {
+            let _ = h.join();
         }
     }
 

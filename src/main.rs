@@ -9,9 +9,10 @@ use alpha_zero_othello::{
 };
 
 const SIMS_PER_MOVE: usize = 1_000;
+const NUM_WORKERS: usize = 4;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut mcts = MCTS::new();
+    let mut mcts: MCTS<NUM_WORKERS> = MCTS::new();
 
     while mcts.board().winner().is_none() {
         let action = match mcts.board().player() {

@@ -40,7 +40,6 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
 
             while mcts.board().winner().is_none() {
                 mcts.run_simulations(sims_per_move, queue_tx.clone(), device);
-
                 states.push(GameState {
                     board: mcts.board().clone(),
                     distribution: mcts.get_distribution(1.0),

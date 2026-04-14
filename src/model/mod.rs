@@ -1,5 +1,5 @@
 use candle_core::{Device, Result};
-use std::sync::mpsc;
+use std::{iter, sync::mpsc};
 
 use crate::{
     board::{Board, Player, action::Action},
@@ -7,6 +7,7 @@ use crate::{
 };
 
 pub mod queue;
+pub mod unet;
 pub mod vit;
 
 /*

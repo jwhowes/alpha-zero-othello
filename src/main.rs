@@ -1,20 +1,12 @@
-use std::{
-    error::Error,
-    fs,
-    io::{Read, Write, stdin, stdout},
-    sync::mpsc,
-    thread,
-};
+use std::{error::Error, fs, sync::mpsc, thread};
 
 use alpha_zero_othello::{
-    board::{Board, Player, Winner, action::Action},
-    mcts::MCTS,
+    board::Board,
     model::{
         evaluate_board,
         queue::evaluation_thread,
         vit::{ViT, ViTConfig},
     },
-    train::self_play::AlphaZeroSelfPlay,
 };
 use candle_core::Device;
 
@@ -33,7 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let board = Board::new();
 
-        let (prior, value) = evaluate_board(&board, queue_tx.clone(), &device).unwrap();
+        let (_prior, value) = evaluate_board(&board, queue_tx.clone(), &device).unwrap();
 
         println!("{}", value);
 

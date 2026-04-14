@@ -55,19 +55,23 @@ impl Attention {
             .w_q
             .forward(x)?
             .reshape((b, l, self.n_heads, self.d_attn))?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .contiguous()?;
         let k = self
             .w_k
             .forward(x)?
             .reshape((b, l, self.n_heads, self.d_attn))?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .transpose(2, 3)?
+            .contiguous()?;
         let v = self
             .w_v
             .forward(x)?
             .reshape((b, l, self.n_heads, self.d_attn))?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .contiguous()?;
 
-        let attn = q.matmul(&k.transpose(2, 3)?)?.broadcast_mul(&self.scale)?;
+        let attn = q.matmul(&k)?.broadcast_mul(&self.scale)?;
 
         self.w_o.forward(
             &softmax(&attn, 3)?

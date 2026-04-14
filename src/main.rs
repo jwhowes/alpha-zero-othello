@@ -1,12 +1,13 @@
 use std::{error::Error, fs, sync::mpsc, thread};
 
 use alpha_zero_othello::{
-    board::Board,
+    board::{Board, Player, Winner},
     model::{
         evaluate_board,
         queue::evaluation_thread,
         vit::{ViT, ViTConfig},
     },
+    train::self_play::AlphaZeroSelfPlay,
 };
 use candle_core::Device;
 
@@ -16,21 +17,19 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let device = Device::Cpu;
 
-    let model = ViT::from_config(config, &device)?;
+    let self_play = AlphaZeroSelfPlay::<4>::new(config, &device)?;
 
-    let (queue_tx, queue_rx) = mpsc::channel();
+    let history = self_play.generate_history(1_000, 1.0, &device);
 
-    thread::scope(|s| {
-        s.spawn(move || evaluation_thread(&model, queue_rx));
+    match history.winner() {
+        Winner::Tie => println!("Tie"),
+        Winner::Player(Player::Black) => println!("Black wins!"),
+        Winner::Player(Player::White) => println!("White wins!"),
+    };
 
-        let board = Board::new();
-
-        let (_prior, value) = evaluate_board(&board, queue_tx.clone(), &device).unwrap();
-
-        println!("{}", value);
-
-        drop(queue_tx);
-    });
+    for state in history.iter() {
+        state.board().display();
+    }
 
     Ok(())
 }

@@ -31,9 +31,9 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
         // TODO: Load model from most recent checkpoint
         let mut states = Vec::new();
 
-        let (queue_tx, queue_rx) = mpsc::channel();
-
         let winner = thread::scope(|s| {
+            let (queue_tx, queue_rx) = mpsc::channel();
+
             s.spawn(move || evaluation_thread(&self.vit, queue_rx));
 
             let mut mcts = MCTS::<NUM_WORKERS>::new(queue_tx.clone(), device);
@@ -50,8 +50,6 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
                 let action = mcts.sample_action(temperature);
                 mcts.make_action(&action, queue_tx.clone(), device);
             }
-
-            drop(queue_tx);
 
             mcts.board().winner().unwrap()
         });

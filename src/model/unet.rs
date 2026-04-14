@@ -29,7 +29,7 @@ impl ResNetBlock {
                 Tensor::randn(0f32, 0.1, (d_model,), device)?,
                 Tensor::randn(0f32, 0.1, (d_model,), device)?,
                 d_model,
-                32,
+                16,
                 1e-6,
             )?,
             out: Conv2d::new(
@@ -83,7 +83,7 @@ impl UNet {
             );
 
             down_samples.push(Conv2d::new(
-                Tensor::randn(0f32, 0.1, (dims[i], dims[i + 1], 2, 2), device)?,
+                Tensor::randn(0f32, 0.1, (dims[i + 1], dims[i], 2, 2), device)?,
                 None,
                 Conv2dConfig {
                     stride: 2,
@@ -96,25 +96,25 @@ impl UNet {
         let mut up_combines = Vec::with_capacity(n - 1);
         let mut up_path = Vec::with_capacity(n - 1);
 
-        for i in (1..n - 1).rev() {
+        for i in (1..=n - 1).rev() {
             up_samples.push(ConvTranspose2d::new(
-                Tensor::randn(0f32, 0.1, (dims[i - 1], dims[i], 2, 2), device)?,
+                Tensor::randn(0f32, 0.1, (dims[i], dims[i - 1], 2, 2), device)?,
                 None,
                 ConvTranspose2dConfig {
                     stride: 2,
-                    ..Default::default()
+                    ..ConvTranspose2dConfig::default()
                 },
             ));
 
             up_combines.push(Conv2d::new(
-                Tensor::randn(0f32, 0.1, (2 * dims[i], dims[i], 1, 1), device)?,
+                Tensor::randn(0f32, 0.1, (dims[i - 1], 2 * dims[i - 1], 1, 1), device)?,
                 None,
                 Conv2dConfig::default(),
             ));
 
             up_path.push(
                 (0..depths[i])
-                    .map(|_| ResNetBlock::new(dims[i], device))
+                    .map(|_| ResNetBlock::new(dims[i - 1], device))
                     .collect::<Result<Vec<_>>>()?,
             );
         }
@@ -143,14 +143,14 @@ impl UNet {
             up_path,
 
             prior_head: Conv2d::new(
-                Tensor::randn(0f32, 0.1, (2, dims[0], 1, 1), device)?,
+                Tensor::randn(0f32, 0.1, (1, dims[0], 1, 1), device)?,
                 None,
                 Conv2dConfig::default(),
             ),
         })
     }
 
-    pub fn new(&self, x: &Tensor) -> Result<(Tensor, Tensor)> {
+    pub fn forward(&self, x: &Tensor) -> Result<(Tensor, Tensor)> {
         let mut x = self.stem.forward(x)?;
 
         let mut activations = Vec::with_capacity(self.down_path.len());
@@ -169,10 +169,10 @@ impl UNet {
             x = block.forward(&x)?;
         }
 
-        let value = self.value_head.forward(&x.mean((2, 3))?)?;
+        let value = self.value_head.forward(&x.mean((2, 3))?)?.squeeze(1)?;
 
         for ((blocks, act), (sample, combine)) in zip(
-            zip(self.up_path.iter(), activations.into_iter()),
+            zip(self.up_path.iter(), activations.into_iter().rev()),
             zip(self.up_samples.iter(), self.up_combines.iter()),
         ) {
             x = combine.forward(&Tensor::cat(&[sample.forward(&x)?, act], 1)?)?;
@@ -182,6 +182,6 @@ impl UNet {
             }
         }
 
-        Ok((self.prior_head.forward(&x)?, value))
+        Ok((self.prior_head.forward(&x)?.squeeze(1)?, value))
     }
 }

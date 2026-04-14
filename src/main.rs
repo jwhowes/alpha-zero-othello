@@ -2,13 +2,13 @@ use std::{error::Error, fs};
 
 use alpha_zero_othello::{
     board::{Player, Winner},
-    model::vit::ViTConfig,
+    model::{unet::UNetConfig, vit::ViTConfig},
     train::self_play::AlphaZeroSelfPlay,
 };
 use candle_core::Device;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let config: ViTConfig =
+    let config: UNetConfig =
         serde_yaml::from_str(fs::read_to_string("configs/init.yaml")?.as_str())?;
 
     let device = Device::Cpu;

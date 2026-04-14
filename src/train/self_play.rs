@@ -6,19 +6,20 @@ use crate::{
     mcts::MCTS,
     model::{
         queue::evaluation_thread,
+        unet::{UNet, UNetConfig},
         vit::{ViT, ViTConfig},
     },
     train::data::{GameHistory, GameState},
 };
 
 pub struct AlphaZeroSelfPlay<const NUM_WORKERS: usize> {
-    vit: ViT,
+    model: UNet,
 }
 
 impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
-    pub fn new(vit_config: ViTConfig, device: &Device) -> Result<Self> {
+    pub fn new(model_config: UNetConfig, device: &Device) -> Result<Self> {
         Ok(Self {
-            vit: ViT::from_config(vit_config, device)?,
+            model: UNet::from_config(model_config, device)?,
         })
     }
 
@@ -34,12 +35,14 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
         let winner = thread::scope(|s| {
             let (queue_tx, queue_rx) = mpsc::channel();
 
-            s.spawn(move || evaluation_thread(&self.vit, queue_rx));
+            s.spawn(move || evaluation_thread(&self.model, queue_rx));
 
             let mut mcts = MCTS::<NUM_WORKERS>::new(queue_tx.clone(), device);
 
             while mcts.board().winner().is_none() {
                 mcts.run_simulations(sims_per_move, queue_tx.clone(), device);
+                println!("Hello!");
+
                 states.push(GameState {
                     board: mcts.board().clone(),
                     distribution: mcts.get_distribution(1.0),

@@ -2,13 +2,13 @@ use std::{iter::zip, sync::mpsc};
 
 use candle_core::{Result, Tensor};
 
-use crate::model::vit::ViT;
+use crate::model::{unet::UNet, vit::ViT};
 
 pub type EvaluateResponse = (Vec<Vec<f32>>, f32);
 
 pub type EvaluateRequest = (Tensor, oneshot::Sender<EvaluateResponse>);
 
-pub fn evaluation_thread(model: &ViT, queue_rx: mpsc::Receiver<EvaluateRequest>) -> Result<()> {
+pub fn evaluation_thread(model: &UNet, queue_rx: mpsc::Receiver<EvaluateRequest>) -> Result<()> {
     loop {
         let (board, response_tx) = match queue_rx.recv() {
             Ok(x) => x,

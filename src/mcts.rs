@@ -80,26 +80,41 @@ impl MCTSNode {
 
         let player = board.player();
 
-        let child_idx = node.lock().unwrap().best_child_idx();
+        let child_idx = {
+            let mut guard = node.lock().unwrap();
+
+            let child_idx = guard.best_child_idx();
+
+            guard.total_action_value[child_idx] -= VIRTUAL_LOSS as f32;
+            guard.visit_count[child_idx] += VIRTUAL_LOSS as isize;
+
+            child_idx
+        };
 
         let action = board.legal_actions()[child_idx];
 
         board.make_action(&action);
 
-        {
-            let mut node_guard = node.lock().unwrap();
+        let child = {
+            let guard = node.lock().unwrap();
 
-            node_guard.total_action_value[child_idx] -= VIRTUAL_LOSS as f32;
-            node_guard.visit_count[child_idx] += VIRTUAL_LOSS as isize;
-        }
+            if let Some(child) = &guard.children[child_idx] {
+                Some(child.clone())
+            } else {
+                None
+            }
+        };
 
-        let action_value = if let Some(child) = node.lock().unwrap().children[child_idx].clone() {
+        let action_value = if let Some(child) = child {
             Self::run_simulation(child, board, queue_tx, device)
         } else {
             let (prior, action_value) = evaluate_board(&board, queue_tx, device).unwrap();
 
-            node.lock().unwrap().children[child_idx] =
-                Some(Arc::new(Mutex::new(MCTSNode::new(prior))));
+            let mut guard = node.lock().unwrap();
+
+            if guard.children[child_idx].is_none() {
+                guard.children[child_idx] = Some(Arc::new(Mutex::new(MCTSNode::new(prior))));
+            }
 
             action_value
         };

@@ -13,9 +13,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let device = Device::Cpu;
 
-    let self_play = AlphaZeroSelfPlay::<4>::new(config, &device)?;
+    let self_play = AlphaZeroSelfPlay::<16>::new(config, &device)?;
 
-    let history = self_play.generate_history(1_000, 1.0, &device);
+    let history = self_play.generate_history(10_000, 1.0, &device);
 
     match history.winner() {
         Winner::Tie => println!("Tie"),

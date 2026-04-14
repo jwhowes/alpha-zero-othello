@@ -1,12 +1,8 @@
-use std::{error::Error, fs, sync::mpsc, thread};
+use std::{error::Error, fs};
 
 use alpha_zero_othello::{
-    board::{Board, Player, Winner},
-    model::{
-        evaluate_board,
-        queue::evaluation_thread,
-        vit::{ViT, ViTConfig},
-    },
+    board::{Player, Winner},
+    model::vit::ViTConfig,
     train::self_play::AlphaZeroSelfPlay,
 };
 use candle_core::Device;

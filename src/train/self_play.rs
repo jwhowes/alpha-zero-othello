@@ -33,10 +33,10 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
 
         let (queue_tx, queue_rx) = mpsc::channel();
 
-        let mut mcts = MCTS::<NUM_WORKERS>::new(queue_tx.clone(), device);
-
-        thread::scope(|s| {
+        let winner = thread::scope(|s| {
             s.spawn(move || evaluation_thread(&self.vit, queue_rx));
+
+            let mut mcts = MCTS::<NUM_WORKERS>::new(queue_tx.clone(), device);
 
             while mcts.board().winner().is_none() {
                 mcts.run_simulations(sims_per_move, queue_tx.clone(), device);
@@ -52,11 +52,10 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
             }
 
             drop(queue_tx);
+
+            mcts.board().winner().unwrap()
         });
 
-        GameHistory {
-            states,
-            winner: mcts.board().winner().unwrap(),
-        }
+        GameHistory { states, winner }
     }
 }

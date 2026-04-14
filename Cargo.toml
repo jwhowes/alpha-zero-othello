@@ -8,3 +8,5 @@ candle-core = "0.10.2"
 candle-nn = "0.10.2"
 oneshot = { version = "0.2.1", features = ["std"] }
 rand = "0.10.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_yaml = "0.9.34"

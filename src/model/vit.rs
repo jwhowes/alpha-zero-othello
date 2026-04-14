@@ -3,6 +3,7 @@ use candle_nn::{
     LayerNorm, Linear, Module,
     ops::{silu, softmax},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::board::GRID_SIZE;
 
@@ -58,14 +59,15 @@ impl Attention {
         let k = self
             .w_k
             .forward(x)?
-            .reshape((b, l, self.n_heads, self.d_attn))?;
+            .reshape((b, l, self.n_heads, self.d_attn))?
+            .transpose(1, 2)?;
         let v = self
             .w_v
             .forward(x)?
             .reshape((b, l, self.n_heads, self.d_attn))?
             .transpose(1, 2)?;
 
-        let attn = q.matmul(&k)?.broadcast_mul(&self.scale)?;
+        let attn = q.matmul(&k.transpose(2, 3)?)?.broadcast_mul(&self.scale)?;
 
         self.w_o.forward(
             &softmax(&attn, 3)?
@@ -149,7 +151,7 @@ pub struct ViT {
     d_model: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct ViTConfig {
     pub d_model: usize,
     pub n_heads: usize,
@@ -233,8 +235,9 @@ impl ViT {
                         self.num_patches,
                         self.patch_size,
                     ))?
-                    .permute((0, 1, 2, 4, 3, 5))?
-                    .flatten(1, 3)?,
+                    .permute((0, 2, 4, 1, 3, 5))?
+                    .flatten(1, 2)?
+                    .flatten(2, 4)?,
             )?
             .broadcast_add(&self.pos_emb)?;
 

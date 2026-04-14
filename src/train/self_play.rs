@@ -28,7 +28,7 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
         temperature: f32,
         device: &Device,
     ) -> GameHistory {
-        // TODO: Load model from most recent checkpoint
+        // TODO: Load model from best checkpoint
         let mut states = Vec::new();
 
         let winner = thread::scope(|s| {
@@ -49,6 +49,7 @@ impl<const NUM_WORKERS: usize> AlphaZeroSelfPlay<NUM_WORKERS> {
                 // TODO: temperature sampler
                 let action = mcts.sample_action(temperature);
                 mcts.make_action(&action, queue_tx.clone(), device);
+                println!("Move made");
             }
 
             mcts.board().winner().unwrap()
